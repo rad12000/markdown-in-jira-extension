@@ -1,4 +1,19 @@
 /**
+ * Configure marked with syntax highlighting via highlight.js
+ */
+marked.use(
+  markedHighlight.markedHighlight({
+    langPrefix: "hljs language-",
+    highlight(code, lang) {
+      if (lang && hljs.getLanguage(lang)) {
+        return hljs.highlight(code, { language: lang }).value;
+      }
+      return hljs.highlightAuto(code).value;
+    },
+  }),
+);
+
+/**
  * @param {HTMLElement} parent
  * @returns {{elToReplace: HTMLElement, markdownText: string}[]}
  */
@@ -61,54 +76,12 @@ function renderMarkdown(parent = document.body) {
       continue;
     }
 
-    const details = document.createElement("details");
-    const summary = document.createElement("summary");
-    const summaryText = document.createElement("p");
     const container = document.createElement("div");
 
-    summaryText.innerText =
-      'Rendered Markdown (Powered by the "Markdown in Jira" Chrome Extension)';
-    summaryText.style.textOverflow = "ellipsis";
-    summaryText.style.overflow = "hidden";
-    summaryText.style.whiteSpace = "nowrap";
-
-    summary.append(summaryText);
-    details.append(summary, container);
-    details.open = true;
-    details.onclick = (e) => {
-      e.stopPropagation();
-    };
-
-    block.elToReplace.replaceWith(details);
+    block.elToReplace.replaceWith(container);
 
     const style = document.createElement("style");
     style.innerText = `
-      details:open > summary {
-        padding-bottom: 1em;
-        position: relative;
-      }
-
-      details > summary {
-        display: flex;
-        align-items: center;
-      }
-
-      details > summary:hover {
-        cursor: grab;
-      }
-
-      details > summary::before {
-        display: inline-block;
-        content: '\\279C';
-        margin-right: 1em;
-        font-size: 2em;
-        transition: transform 100ms;
-      }
-
-      details:open > summary::before {
-        transform: rotate(90deg);
-      }
-
       .markdown-rendered {
         padding: 1em;
         line-height: 1.6;
@@ -197,7 +170,7 @@ function renderMarkdown(parent = document.body) {
         margin: 1em 0;
       }
     `;
-    details.before(style);
+    container.before(style);
 
     container.classList.add("markdown-rendered");
     container.innerHTML = marked.parse(block.markdownText);
