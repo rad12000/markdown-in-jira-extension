@@ -1,0 +1,19 @@
+{
+  "name": "Markdown in Jira",
+  "description": "Renders markdown code blocks as formatted HTML in Jira.",
+  "version": "2.0",
+  "manifest_version": 3,
+  "action": {},
+  "content_scripts": [
+    {
+      "matches": ["https://*/*"],
+      "include_globs": [
+        "https://*/browse/*",
+        "https://**/boards/*",
+        "https://**/secure/RapidBoard*"
+      ],
+      "css": [],
+      "js": ["marked.umd.js", "content-script.js"]
+    }
+  ]
+}
