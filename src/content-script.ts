@@ -34,24 +34,19 @@ function findMarkdownCodeBlocks(parent: HTMLElement): MarkdownBlock[] {
     const parentEl = block.parentElement;
     if (!parentEl) continue;
 
-    const siblingErrorDiv = parentEl.querySelector(".error");
-    if (!siblingErrorDiv) continue;
-
-    const markdownPrefix =
-      "Unable to find source-code formatter for language: markdown.";
-    if (!siblingErrorDiv.textContent?.trim().startsWith(markdownPrefix))
-      continue;
-
     let code = block.textContent;
     if (!code) continue;
     code = code.trim();
+    const frontMatter = parseFrontMatter(code);
+    if (!frontMatter) continue;
+    if (frontMatter.matter["language"] !== "markdown") continue;
+    code = code.substring(frontMatter.endMatterIndex);
 
     if (parentEl.childElementCount === 1) {
       (parentEl as HTMLElement).style.padding = "1em";
       (parentEl as HTMLElement).style.display = "block";
     }
 
-    siblingErrorDiv.remove();
     blocks.push({ elToReplace: block as HTMLElement, markdownText: code });
   }
 
@@ -147,6 +142,38 @@ const MARKDOWN_STYLES = `
     margin: 1em 0;
   }
 `;
+
+function parseFrontMatter(content: string): {
+  matter: Record<string, string>;
+  endMatterIndex: number;
+} | null {
+  if (!content.startsWith("---\n")) {
+    return null;
+  }
+
+  const endIndex = content.indexOf("\n---", 4);
+  if (endIndex === -1) {
+    return null;
+  }
+
+  const keyValuePairs = content
+    .substring(4, endIndex)
+    .split("\n")
+    .map((line) => line.split(":", 2))
+    .filter((item) => item.length === 2)
+    .reduce(
+      (prev, cur) => {
+        prev[cur[0].trim()] = cur[1].trim();
+        return prev;
+      },
+      {} as Record<string, string>,
+    );
+
+  return {
+    matter: keyValuePairs,
+    endMatterIndex: endIndex + 4,
+  };
+}
 
 /**
  * Render all discovered markdown code blocks within a parent element.
