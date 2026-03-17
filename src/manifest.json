@@ -13,12 +13,7 @@
         "https://**/secure/RapidBoard*"
       ],
       "css": ["highlight-github.min.css"],
-      "js": [
-        "highlight.min.js",
-        "marked.umd.js",
-        "marked-highlight.umd.js",
-        "content-script.js"
-      ]
+      "js": ["content-script.js"]
     }
   ]
 }
