@@ -1,6 +1,7 @@
 import { marked } from "marked";
 import { markedHighlight } from "marked-highlight";
 import hljs from "highlight.js";
+import mermaid from "mermaid";
 
 /**
  * Configure marked with syntax highlighting via highlight.js
@@ -8,7 +9,15 @@ import hljs from "highlight.js";
 marked.use(
   markedHighlight({
     langPrefix: "hljs language-",
-    highlight(code, lang) {
+    async: true,
+    async highlight(code, lang) {
+      if (lang === "mermaid") {
+        const renderResult = await mermaid.render(
+          Math.random() * 10000 + "",
+          "",
+        );
+        return `<div>${renderResult.svg}</div>`;
+      }
       if (lang && hljs.getLanguage(lang)) {
         return hljs.highlight(code, { language: lang }).value;
       }

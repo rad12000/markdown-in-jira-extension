@@ -2,13 +2,14 @@
   "name": "jira-markdown",
   "private": true,
   "scripts": {
-    "build": "mkdir -p build && bun build src/content-script.ts --outdir=build --target=browser --format=iife --minify && cp src/manifest.json build/manifest.json && cp node_modules/highlight.js/styles/github.min.css build/highlight-github.min.css",
+    "build": "mkdir -p build && bun build src/content-script.ts --outdir=build --target=browser --format=iife && cp src/manifest.json build/manifest.json && cp node_modules/highlight.js/styles/github.min.css build/highlight-github.min.css",
     "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {
     "highlight.js": "^11.11.1",
     "marked": "^17.0.4",
-    "marked-highlight": "^2.2.1"
+    "marked-highlight": "^2.2.1",
+    "mermaid": "^11.14.0"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.323",
