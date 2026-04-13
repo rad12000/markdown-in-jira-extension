@@ -1,7 +1,7 @@
 {
   "name": "Markdown in Jira",
   "description": "Renders markdown code blocks as formatted HTML in Jira.",
-  "version": "2.1",
+  "version": "2.2",
   "manifest_version": 3,
   "action": {},
   "content_scripts": [
