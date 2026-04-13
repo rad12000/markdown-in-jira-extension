@@ -6,6 +6,7 @@
   "action": {},
   "content_scripts": [
     {
+      "world": "ISOLATED",
       "matches": ["https://*/*"],
       "include_globs": [
         "https://*/browse/*",
@@ -14,6 +15,12 @@
       ],
       "css": ["highlight-github.min.css"],
       "js": ["content-script.js"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["static/mermaid.html"],
+      "matches": ["https://*/*"]
     }
   ]
 }

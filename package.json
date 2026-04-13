@@ -2,7 +2,7 @@
   "name": "jira-markdown",
   "private": true,
   "scripts": {
-    "build": "mkdir -p build && bun build src/content-script.ts --outdir=build --target=browser --format=iife && cp src/manifest.json build/manifest.json && cp node_modules/highlight.js/styles/github.min.css build/highlight-github.min.css",
+    "build": "mkdir -p build && bun build src/content-script.ts --outdir=build --target=browser --format=iife && cp src/manifest.json build/manifest.json && cp node_modules/highlight.js/styles/github.min.css build/highlight-github.min.css && mkdir -p build/static && cp src/static/* build/static/",
     "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {

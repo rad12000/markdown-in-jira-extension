@@ -1,0 +1,556 @@
+<!doctype html>
+<html>
+  <head>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0"
+    />
+
+    <style>
+      * {
+        padding: 0;
+        margin: 0;
+        box-sizing: border-box;
+      }
+
+      .adjust-buttons > button:hover {
+        background-color: transparent;
+        cursor: grab;
+      }
+
+      .adjust-buttons > button:active {
+        cursor: grabing;
+      }
+
+      pre:not(.pre-code) {
+        width: 100%;
+        height: 100%;
+        display: flex;
+      }
+
+      pre > svg {
+        width: 100%;
+        height: 100%;
+        max-width: 100% !important;
+        max-height: calc(100% - 8px) !important;
+      }
+
+      body {
+        position: relative;
+        height: 100%;
+      }
+
+      .actions {
+        position: fixed;
+        right: 0;
+        top: 0;
+        z-index: 1;
+        border-radius: 5px;
+        background-color: #e2e3e4;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr 1fr auto 1fr;
+        justify-content: space-between;
+        align-items: center;
+        column-gap: 5px;
+      }
+
+      .actions > button {
+        border: none;
+        border-radius: 5px;
+        background-color: transparent;
+        position: relative;
+        aspect-ratio: 1 / 1;
+        padding: 0.5em;
+        display: flex;
+      }
+
+      .actions > button:hover {
+        background-color: #bcbcbc;
+      }
+
+      button:hover {
+        cursor: grab;
+      }
+
+      button:active {
+        cursor: grabbing;
+      }
+
+      .action-spacer {
+        width: 2px;
+        height: 1em;
+        background-color: #bcbcbc;
+      }
+
+      #mermaid-code {
+        display: inline-block;
+      }
+
+      #fullscreen > span::after {
+        content: "\f1ce";
+      }
+
+      #fullscreen > span.full-screen::after {
+        content: "\f1cf";
+      }
+
+      .tab-container {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        height: 100%;
+      }
+
+      .tab-container .tab-content {
+        height: 100%;
+        overflow: hidden;
+      }
+
+      .tab-container .tab-header {
+        display: grid;
+        grid-template-columns: auto auto 1fr;
+        gap: 0.5em;
+      }
+
+      .tab-container .tab-header > * {
+        background-color: #e2e3e4;
+        border: none;
+        border-radius: 5px;
+        position: relative;
+        aspect-ratio: 1 / 1;
+        padding: 0.5em;
+        display: flex;
+      }
+
+      .tab-container .tab-header > .active {
+        background-color: #bcbcbc;
+      }
+
+      .tab-container > .tab-content > *:not(.active) {
+        display: none !important;
+      }
+
+      .raw-code {
+        padding: 1em;
+        background-color: #bcbcbc;
+        text-align: left;
+        margin-top: 1em;
+        color: black;
+        overflow: auto;
+        width: 100%;
+      }
+
+      #mermaid-code-container {
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+      }
+
+      #mermaid-code-container > #error-message {
+        display: none;
+      }
+
+      .error#mermaid-code-container > #error-message {
+        display: block !important;
+      }
+
+      .error#mermaid-code-container {
+        display: grid;
+        grid-template-rows: auto 1fr;
+      }
+
+      body {
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="actions">
+      <button id="recenter" tooltip="reset zoom">
+        <span class="material-symbols-outlined"> recenter </span>
+      </button>
+      <div class="action-spacer"></div>
+      <button class="adjust-scale minus">
+        <span class="material-symbols-outlined"> zoom_out </span>
+      </button>
+      <button class="adjust-scale plus">
+        <span class="material-symbols-outlined"> zoom_in </span>
+      </button>
+      <div class="action-spacer"></div>
+      <button id="fullscreen" tooltip="enter expanded mode">
+        <span class="material-symbols-outlined [[FULL_SCREEN_CLASS]]"></span>
+      </button>
+    </div>
+    <div class="tab-container">
+      <div class="tab-header">
+        <button>
+          <span class="material-symbols-outlined">insert_chart</span>
+        </button>
+        <button>
+          <span class="material-symbols-outlined">code</span>
+        </button>
+      </div>
+
+      <div class="tab-content" style="display: flex; justify-content: center">
+        <div id="mermaid-code-container">
+          <pre id="mermaid-code"><div id="diagram-placeholder"></div></pre>
+          <pre id="error-message" style="display: none; overflow: auto"></pre>
+        </div>
+        <div class="raw-code">
+          <pre class="pre-code"></pre>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+      let windowId;
+      const outgoingMessagePool = [];
+      function postMessage(msg) {
+        if (!windowId) {
+          outgoingMessagePool.push(msg);
+          return;
+        }
+
+        window.parent.postMessage({ ...msg, windowId });
+      }
+
+      const waitingMessages = {};
+      function waitForMessage(messageType, callback) {
+        let resolve;
+        const currentlyWaiting = waitingMessages[messageType] ?? [];
+        currentlyWaiting.push((eventData) => {
+          if (callback) {
+            callback(eventData);
+          }
+          resolve();
+        });
+        waitingMessages[messageType] = currentlyWaiting;
+
+        return new Promise((resolver) => {
+          resolve = resolver;
+        });
+      }
+
+      function notifyOfMessage(eventData) {
+        const { type } = eventData ?? {};
+        if (!type) return;
+        const pending = waitingMessages[type];
+        if (!pending) return;
+        while (1) {
+          const callback = pending.pop();
+          if (!callback) return;
+          callback(eventData);
+        }
+      }
+
+      window.addEventListener("message", (e) => {
+        if (!("type" in e.data)) return;
+
+        switch (e.data.type) {
+          case "WINDOW_ID":
+            windowId = e.data.value;
+            for (const msg of outgoingMessagePool) {
+              postMessage(msg);
+            }
+            break;
+          default:
+            notifyOfMessage(e.data);
+        }
+      });
+
+      async function renderMermaid() {
+        const mermaidCode = JSON.parse([[MERMAID_CODE]]);
+        const mermaidCodeEl = document.getElementById("mermaid-code");
+        mermaidCodeEl.textContent = mermaidCode;
+        document.querySelector(".pre-code").textContent = mermaidCode;
+
+        postMessage({ type: "BEFORE_RENDER" });
+        await waitForMessage("BEFORE_RENDER_ACK");
+
+        mermaid.initialize({ startOnLoad: false });
+        mermaid.parseError = (err, hash) => {
+          const errEl = document.querySelector("#error-message");
+          errEl.innerText = err.message;
+          errEl.parentElement.classList.add("error");
+          console.error(err);
+        };
+
+        const { svg } = await mermaid.render(
+          "diagram-placeholder",
+          mermaidCode,
+        );
+
+        mermaidCodeEl.innerHTML = svg;
+        postMessage({ type: "AFTER_RENDER" });
+      }
+
+      renderMermaid();
+    </script>
+
+    <!-- This script handles tabs -->
+    <script>
+      const tabContainers = document.querySelectorAll(".tab-container");
+      for (const container of tabContainers) {
+        const containerHeaders = [
+          ...container.querySelectorAll(".tab-header > *"),
+        ];
+        const containerContents = [
+          ...container.querySelectorAll(".tab-content > *"),
+        ];
+
+        if (containerHeaders.length !== containerContents.length) {
+          console.error(
+            "Invalid tab container configuration. There must be the same number of headers and content items.",
+            container,
+          );
+          continue;
+        }
+
+        containerHeaders.forEach((headerItem, i) => {
+          if (i === 0) {
+            headerItem.classList.add("active");
+            containerContents[0].classList.add("active");
+          }
+
+          headerItem.addEventListener("click", () => {
+            containerContents.forEach((content, contentI) => {
+              if (contentI === i) {
+                content.classList.add("active");
+                containerHeaders[contentI].classList.add("active");
+                return;
+              }
+
+              content.classList.remove("active");
+              containerHeaders[contentI].classList.remove("active");
+            });
+          });
+        });
+      }
+    </script>
+
+    <script>
+      const pre = document.querySelector("pre");
+      const [minusButton, plusButton] = [
+        ...document.querySelectorAll(".adjust-scale"),
+      ];
+
+      const changeScale = ({ increment, factor, scale }) => {
+        if (
+          increment === undefined &&
+          factor === undefined &&
+          scale === undefined
+        ) {
+          throw new Error("increment, factor or scale must be provided");
+        }
+
+        let currentScale = parseFloat(pre.getAttribute("x-data-scale") ?? "1");
+        if (increment !== undefined) {
+          currentScale = increment ? currentScale + 0.2 : currentScale - 0.2;
+        } else if (factor !== undefined) {
+          currentScale = currentScale * factor;
+        } else {
+          currentScale = scale;
+        }
+        currentScale = Math.round(currentScale * 100) / 100;
+
+        if (currentScale <= 0) return;
+        pre.setAttribute("x-data-scale", currentScale + "");
+        pre.style.scale = currentScale + "";
+      };
+
+      const getCurrentTranslate = () => {
+        const x = parseInt(pre.getAttribute("x-data-translate-x") ?? "0");
+        const y = parseInt(pre.getAttribute("x-data-translate-y") ?? "0");
+
+        return { x, y };
+      };
+
+      const setTranslate = ({ x, y }) => {
+        pre.setAttribute("x-data-translate-x", x);
+        pre.setAttribute("x-data-translate-y", y);
+        pre.style.translate = `${x}px ${y}px`;
+      };
+
+      minusButton.onclick = () => changeScale({ increment: false });
+      plusButton.onclick = () => changeScale({ increment: true });
+
+      document.addEventListener(
+        "wheel",
+        (e) => {
+          if (!e.ctrlKey) return;
+          e.preventDefault();
+          changeScale({ factor: event.deltaY < 0 ? 1.05 : 0.95 });
+        },
+        { passive: false },
+      );
+
+      document.getElementById("recenter").onclick = () => {
+        changeScale({ scale: 1 });
+        setTranslate({ x: 0, y: 0 });
+      };
+
+      /**
+       * drag to scroll logic
+       */
+
+      /**
+       * @type {HTMLElement}
+       */
+      const codeContainer = document.querySelector("#mermaid-code-container");
+
+      let isDragging = false;
+      let startX;
+      let startY;
+      let scrollLeft;
+      let scrollTop;
+      let initial;
+
+      codeContainer.addEventListener("mousedown", (e) => {
+        isDragging = true;
+        startX = e.pageX - codeContainer.offsetLeft;
+        startY = e.pageY - codeContainer.offsetTop;
+        initial = getCurrentTranslate();
+      });
+
+      codeContainer.addEventListener("mouseleave", () => {
+        isDragging = false;
+      });
+
+      codeContainer.addEventListener("mouseup", () => {
+        isDragging = false;
+      });
+
+      codeContainer.addEventListener("mousemove", (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+
+        const currentX = e.pageX - codeContainer.offsetLeft;
+        const currentY = e.pageY - codeContainer.offsetTop;
+        const walkX = currentX - startX;
+        const walkY = currentY - startY;
+        setTranslate({
+          x: walkX + initial.x,
+          y: walkY + initial.y,
+        });
+      });
+    </script>
+
+    <script>
+      function downloadSVG() {
+        const svg = document.querySelector("svg");
+        if (!svg) return;
+
+        const serializer = new XMLSerializer();
+        const svgString = serializer.serializeToString(svg);
+
+        const blob = new Blob([svgString], { type: "image/svg+xml" });
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "mermaid.svg";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+
+      function openSvgInNewTab() {
+        const svg = document.querySelector("svg");
+        const serializer = new XMLSerializer();
+        const svgString = serializer.serializeToString(svg);
+
+        const blob = new Blob([svgString], { type: "image/svg+xml" });
+        const url = URL.createObjectURL(blob);
+
+        window.open(url, "_blank");
+      }
+
+      document.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+
+        const dialog = document.createElement("dialog");
+        dialog.style.position = "fixed";
+        dialog.style.top = `${e.clientY}px`;
+        dialog.style.left = `${e.clientX}px`;
+        dialog.style.padding = "0.5em";
+        dialog.style.border = "solid #c2c2c2 1px";
+        dialog.style.backgroundColor = "rgb(232 232 232 / 98%)";
+        dialog.style.borderRadius = "5px";
+        dialog.style.boxShadow = "black 0 0 17px -11px";
+        dialog.style.fontFamily = "sans-serif";
+
+        const style = document.createElement("style");
+        style.textContent = `
+            dialog:focus {
+                outline: none;
+            }
+            .body {
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+            }
+
+            .body > div {
+                padding: 2px 5px;
+                border-radius: 5px;
+            }
+
+            .body > div:hover {
+                background-color: #3b86ff;
+                color: white;
+                cursor: default;
+            }
+        `;
+
+        const body = document.createElement("div");
+        body.classList.add("body");
+
+        const downloadListItem = document.createElement("div");
+        downloadListItem.innerText = "Download SVG";
+        downloadListItem.onclick = () => {
+          downloadSVG();
+        };
+
+        const openInNewTab = document.createElement("div");
+        openInNewTab.innerText = "Open Image in New Tab";
+        openInNewTab.onclick = () => {
+          openSvgInNewTab();
+        };
+
+        body.append(downloadListItem, openInNewTab);
+        dialog.append(style, body);
+        document.body.append(dialog);
+
+        let keyPressListener;
+        let clickListener;
+        let menuListener;
+
+        menuListener = () => {
+          dialog.remove();
+          document.removeEventListener("keypress", keyPressListener);
+          document.removeEventListener("click", clickListener);
+          document.removeEventListener("contextmenu", menuListener);
+        };
+
+        clickListener = (e) => {
+          if (dialog.contains(e.target)) return;
+          menuListener();
+        };
+
+        keyPressListener = (e) => {
+          console.log(e.key);
+          if (e.key !== "Escape") return;
+          menuListener();
+        };
+
+        document.addEventListener("mousedown", clickListener);
+        document.addEventListener("keydown", keyPressListener);
+        document.addEventListener("contextmenu", menuListener);
+
+        dialog.show();
+      });
+    </script>
+  </body>
+</html>

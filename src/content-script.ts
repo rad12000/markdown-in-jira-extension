@@ -1,7 +1,20 @@
 import { marked } from "marked";
 import { markedHighlight } from "marked-highlight";
 import hljs from "highlight.js";
-import mermaid from "mermaid";
+import { renderMermaid } from "./render-mermaid";
+
+(() => {
+  const observer = new MutationObserver(() => {
+    const mermaidBlocks = document.querySelectorAll(".jira-mermaid");
+    for (const block of mermaidBlocks) {
+      renderMermaid({
+        mermaidCode: block.textContent,
+        elToReplace: block as HTMLElement,
+      });
+    }
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+})();
 
 /**
  * Configure marked with syntax highlighting via highlight.js
@@ -9,15 +22,11 @@ import mermaid from "mermaid";
 marked.use(
   markedHighlight({
     langPrefix: "hljs language-",
-    async: true,
-    async highlight(code, lang) {
+    highlight(code, lang) {
       if (lang === "mermaid") {
-        const renderResult = await mermaid.render(
-          Math.random() * 10000 + "",
-          "",
-        );
-        return `<div>${renderResult.svg}</div>`;
+        return `<pre class="jira-mermaid">${code}</pre>`;
       }
+
       if (lang && hljs.getLanguage(lang)) {
         return hljs.highlight(code, { language: lang }).value;
       }
@@ -217,7 +226,9 @@ function renderMarkdown(parent: HTMLElement = document.body): void {
     container.before(style);
 
     container.classList.add("markdown-rendered");
-    container.innerHTML = marked.parse(block.markdownText) as string;
+    Promise.resolve(marked.parse(block.markdownText)).then(
+      (v) => (container.innerHTML = v),
+    );
   }
 }
 
